@@ -1,0 +1,9 @@
+{
+  "name": "hardbuild",
+  "displayName": "HardBuild",
+  "description": "Hercules-style quality system for Claude Code: 24-area product audit with scores + confidence, a Definition-of-Done ship gate, and real-time hooks that stop thin builds (placeholders, stubs, orphan files, failing typecheck/lint/tests) from being declared done.",
+  "version": "1.0.0",
+  "author": { "name": "Ronnie O'Dell", "url": "https://github.com/gtminsightlab-cmd" },
+  "license": "MIT",
+  "keywords": ["audit", "qa", "quality", "nextjs", "supabase", "vercel", "hooks", "definition-of-done"]
+}

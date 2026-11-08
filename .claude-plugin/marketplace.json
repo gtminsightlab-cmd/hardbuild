@@ -1,0 +1,15 @@
+{
+  "name": "hardbuild",
+  "description": "HardBuild: 24-area product audits with scores and confidence, plus real-time build-hardening hooks for Claude Code.",
+  "owner": { "name": "Ronnie O'Dell" },
+  "plugins": [
+    {
+      "name": "hardbuild",
+      "source": "./plugins/hardbuild",
+      "description": "24-area audit (product, design, mobile, performance, docs, code quality, a11y, scalability, error handling, database, tests, integrations, cloud cost, security, identity, dependencies, SEO, landing page, copy, branding, i18n, billing, legal, privacy) + ship gate + anti-thin-build hooks. Tuned for Next.js + Supabase + Vercel.",
+      "version": "1.0.0",
+      "category": "quality",
+      "tags": ["audit", "qa", "hooks", "nextjs", "supabase", "vercel"]
+    }
+  ]
+}

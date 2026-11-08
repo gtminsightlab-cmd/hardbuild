@@ -1,0 +1,52 @@
+{
+  "$comment": "HardBuild config. Copy to your project root as .hardbuild.json. Every key is optional; these are the defaults. Gates run from the Stop hook; audit.* feeds /hardbuild:audit.",
+  "enabled": true,
+  "gates": {
+    "typecheck": true,
+    "lint": true,
+    "test": true,
+    "build": false,
+    "smells": true,
+    "orphans": true
+  },
+  "commands": {
+    "$comment": "Leave empty to auto-detect from package.json scripts (typecheck|type-check|tsc, lint, test:unit|test, build).",
+    "typecheck": "",
+    "lint": "",
+    "test": "",
+    "build": ""
+  },
+  "budgetSeconds": 240,
+  "maxBlocks": 3,
+  "ignorePaths": ["audits/", "docs/", "supabase/seed"],
+  "audit": {
+    "project": "My App",
+    "brandName": "My App",
+    "productionUrl": "",
+    "stagingUrl": "",
+    "primaryCta": "Get a quote",
+    "allowTestSubmissions": false,
+    "targetMarkets": ["en-US"],
+    "emailDomain": "",
+    "billing": "none",
+    "taxMode": "none",
+    "gatedFeatures": [],
+    "legalEntity": { "name": "", "address": "", "email": "", "state": "", "producerLicenses": [] },
+    "ugc": false,
+    "marketingEmail": false,
+    "sms": false,
+    "repoPublic": false,
+    "euUsers": false,
+    "supabaseRegion": "",
+    "aiFeatures": false,
+    "driveFolder": "HardBuild Audits",
+    "mirrorToDrive": true,
+    "$keys": {
+      "billing": "none | stripe | other",
+      "taxMode": "none | stripe-tax | manual",
+      "gatedFeatures": "feature names that require a paid plan — Billing audit checks server-side entitlement for each",
+      "producerLicenses": "state codes where insurance producer/agency license disclosures apply",
+      "allowTestSubmissions": "true lets the Landing Page audit submit a clearly marked test lead to prove the CTA path end-to-end"
+    }
+  }
+}
