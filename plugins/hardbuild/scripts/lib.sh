@@ -70,7 +70,8 @@ hb_has_dep() {
 # Portable timeout wrapper: hb_timeout <seconds> <cmd...>
 hb_timeout() {
   local secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"
+  # Only GNU timeout has this interface; Windows ships its own timeout.exe with different flags.
+  if timeout --version 2>/dev/null | grep -q GNU; then timeout "$secs" "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"
   else "$@"; fi
 }

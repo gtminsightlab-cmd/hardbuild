@@ -37,7 +37,7 @@ Or from a shell: `claude plugin marketplace add gtminsightlab-cmd/hardbuild && c
 
 **From the zip (per project / offline):** unzip, then `claude --plugin-dir ./hardbuild/plugins/hardbuild` or add it via `/plugin marketplace add ./hardbuild`.
 
-**Requirements:** `jq` and `git` on PATH (both standard on macOS/Linux; `brew install jq` if missing).
+**Requirements:** `git` and `jq` on PATH. macOS: `brew install jq`. Windows: Git for Windows (gives Claude Code its Git Bash) + `winget install jqlang.jq` — or run Claude Code inside WSL, where everything is standard Linux.
 
 ## Set up a project (2 minutes)
 1. Copy `plugins/hardbuild/templates/.hardbuild.json` to your project root and fill in `audit.project`, `audit.productionUrl`, `audit.primaryCta`, `audit.billing`, etc. Leave `commands.*` empty to auto-detect from `package.json` scripts.
