@@ -1,0 +1,60 @@
+# Mobile & Tablet audit — checks
+
+**Purpose:** Check the experience on phones and tablets — the core job must be completable one-handed on a 375px phone and comfortably on a 768px tablet, with no horizontal scroll, no unreachable controls, and no hover-only features.
+**Scorecard row:** Mobile & Tablet · **Report:** `audits/mobile.md` · **Overlaps:** Design (type size, spacing), Accessibility (tap target WCAG 2.5.8 detail, focus order), Performance (image bytes, LCP on 4G). Reference, don't repeat.
+
+## Inputs to gather first
+- Browser tooling: `ls node_modules/.bin/playwright 2>/dev/null` (Playwright); else Chrome DevTools device toolbar via the browser tools; else READ-only.
+- Target URL: `.hardbuild.json → audit.productionUrl` or `next dev` on :3000.
+- Primary screens to test: signed-in landing, core list, core create/edit, settings. Take them from the Product audit route inventory.
+- Playwright snippet (reuse for MOB-03/04/05/06/09): `npx playwright screenshot --viewport-size=375,812 --full-page <url> /tmp/m375.png` and `--viewport-size=768,1024`. Overflow probe: `npx playwright eval` is not a command — use a tiny script: `node -e "const {chromium}=require('playwright');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:375,height:812}});await p.goto(process.argv[1]);console.log(await p.evaluate(()=>document.documentElement.scrollWidth));await b.close()})()" <url>` → must print `375`.
+
+## Checks
+Format: `ID · weight · check · how to verify (strongest first) · typical failure`
+
+- **MOB-01 · 3 · Viewport meta is correct and does not block zoom.**
+  VERIFY: `grep -rn "viewport" app/layout.tsx app/**/layout.tsx --include=*.tsx` → either Next default (no override) or `export const viewport: Viewport = { width: 'device-width', initialScale: 1 }`; must NOT contain `maximumScale: 1` or `userScalable: false`. `curl -s <url> | grep -o '<meta name="viewport"[^>]*>'`.
+  FAIL PATTERN: `maximum-scale=1, user-scalable=no` copied from a template (blocks pinch-zoom for low-vision users); `viewport-fit=cover` missing when the app uses fixed bottom bars (see MOB-11).
+- **MOB-02 · 3 · Responsive breakpoints are actually used.**
+  VERIFY: `grep -rhoE "\b(sm|md|lg|xl|2xl):" app components --include=*.tsx | sort | uniq -c` → non-trivial counts for `sm:`/`md:`/`lg:`; `grep -rln "md:\|lg:" app --include=page.tsx | wc -l` vs total pages. READ the app shell layout: sidebar must have a `hidden md:flex` / `lg:` pattern or a drawer.
+  FAIL PATTERN: zero responsive prefixes on a page with a grid (`grid-cols-3` with no `grid-cols-1 md:`); desktop-only `flex-row` toolbars that wrap into 4 lines; breakpoints used only for font size.
+- **MOB-03 · 3 · No horizontal overflow at 375px.**
+  VERIFY: Playwright overflow probe above on each primary screen → `scrollWidth === 375`. Static hunt: `grep -rnoE "\b(w|min-w|max-w)-\[([4-9][0-9]{2}|[1-9][0-9]{3})px\]" app components --include=*.tsx` (fixed widths >360px); `grep -rnE "w-(96|\[.*rem\])|min-w-\[" app components --include=*.tsx`; `grep -rnE "whitespace-nowrap|overflow-x-hidden" app components --include=*.tsx` (nowrap on long text; `overflow-x-hidden` on body is hiding a bug, not fixing it). Long unbroken strings (emails, URLs, IDs) need `break-all`/`truncate`.
+  FAIL PATTERN: `min-w-[640px]` on a card; `grid-cols-[200px_1fr_200px]` with no breakpoint; `<pre>` or code blocks without `overflow-x-auto`; `body { overflow-x: hidden }` masking the real overflow.
+- **MOB-04 · 2 · Tap targets ≥44×44px with spacing.**
+  VERIFY: Playwright: `document.querySelectorAll('button,a,[role=button],input,select').forEach(e=>{const r=e.getBoundingClientRect(); if(r.width&&(r.width<44||r.height<44)) console.log(e.outerHTML.slice(0,80), r.width, r.height)})` at 375px on the primary screens. Static: `grep -rnE "size=\"(icon|sm)\"|h-[5-8]\b.*w-[5-8]\b" app components --include=*.tsx | wc -l` → each icon-button must have `min-h-11 min-w-11` or padding to reach 44px; shadcn `size="icon"` is 40px (`h-10 w-10`) — a finding on mobile unless overridden.
+  FAIL PATTERN: 24px icon buttons in a table row; inline text links 12px tall stacked with 0 gap; checkbox with no label click area; shadcn defaults never adjusted for touch.
+- **MOB-05 · 3 · Tables degrade on mobile (scroll container or stacked cards).**
+  VERIFY: `grep -rln "<table\|<Table" app components --include=*.tsx` → for each, the wrapper must have `overflow-x-auto` (shadcn `Table` wraps in `relative w-full overflow-auto` — confirm it is unchanged) *or* a `md:hidden` card layout + `hidden md:table`. Playwright at 375px: screenshot each table route; columns must not clip without a scroll affordance. Data tables with >5 columns should hide secondary columns (`hidden md:table-cell`).
+  FAIL PATTERN: 8-column table squeezed to 375px with 6px text; table inside `overflow-hidden` card so the scroll is impossible; row action buttons pushed offscreen.
+- **MOB-06 · 2 · Navigation collapses to a usable mobile pattern.**
+  VERIFY: READ app shell (`app/(app)/layout.tsx`, `components/**/sidebar*`, `**/nav*`): sidebar `hidden md:block` + a `<Sheet>`/drawer with a hamburger `md:hidden`, or a bottom tab bar. Playwright at 375px: can you reach every top-level route in ≤2 taps? Current route is highlighted. Sheet closes on route change (`usePathname` effect or `onClick={() => setOpen(false)}`).
+  FAIL PATTERN: 240px sidebar permanently visible leaving 135px for content; hamburger opens a sheet that never closes after navigation; nav links in the sheet are 32px tall; mobile nav missing items that the desktop sidebar has.
+- **MOB-07 · 2 · Forms work with the mobile keyboard.**
+  VERIFY: `grep -rnE "<Input|<input" app components --include=*.tsx | grep -vE "type=|inputMode=" | wc -l` → text inputs lacking any type hint; `grep -rnE "type=\"(email|tel|url|number|search|date)\"|inputMode=\"(numeric|decimal|tel|email|url)\"" app components --include=*.tsx | wc -l`; `grep -rn "autoComplete=" app components --include=*.tsx | wc -l` → login/signup/address/payment forms must set `autoComplete` (`email`, `current-password`, `new-password`, `name`, `tel`, `postal-code`, `one-time-code`); `grep -rn "autoCapitalize\|autoCorrect" ...` on email/username fields. `enterKeyHint="search"|"done"` on single-field forms is a plus.
+  FAIL PATTERN: ZIP/phone/amount fields open the full QWERTY keyboard; `type="number"` for phone/ZIP (strips leading zeros, shows spinners); OTP field without `autoComplete="one-time-code"` and `inputMode="numeric"`; email field auto-capitalizing the first letter.
+- **MOB-08 · 2 · Modals, sheets, and dropdowns fit the viewport.**
+  VERIFY: `grep -rnE "h-screen|min-h-screen|max-h-screen" app components --include=*.tsx | wc -l` → should be `dvh` (`h-dvh`, `min-h-dvh`, `max-h-[90dvh]`) for anything that must fit the visible area on iOS Safari; `grep -rn "max-h-\[.*dvh\]\|h-dvh\|svh" app components --include=*.tsx | wc -l`. Dialog content must scroll internally: `DialogContent` with `max-h-[90dvh] overflow-y-auto`. Playwright at 375×667 (small phone): open the create dialog; the submit button must be visible without zooming. Prefer `<Sheet side="bottom">`/`<Drawer>` (vaul) over centered `<Dialog>` for forms on mobile.
+  FAIL PATTERN: `h-screen` layout leaves a 100px dead strip under iOS Safari's URL bar; dialog taller than the viewport with the Save button unreachable; `<Select>` dropdown opens off-screen; date picker 400px wide.
+- **MOB-09 · 2 · Images are responsive and sized for small screens.**
+  VERIFY: `grep -rn "<img" app components --include=*.tsx | wc -l` → should be 0 (use `next/image`; detail in Performance); `grep -rn "<Image" app components --include=*.tsx | grep -v "sizes=" | grep -v "fill" | wc -l` → `fill` images without `sizes` serve desktop-width bytes to phones; `grep -rnE "sizes=\"[^\"]*\"" app components --include=*.tsx | head` → values should mention viewport (`(max-width: 768px) 100vw, 50vw`). Playwright at 375px: hero and card images must not overflow (`w-full h-auto`) nor pixelate (`object-cover` with aspect wrapper).
+  FAIL PATTERN: `<Image width={1200} height={600}>` with no `className="w-full h-auto"` → 1200px wide on a 375px phone; avatars at `fill` with no `sizes` → 1920px download; background images in CSS with no mobile variant.
+- **MOB-10 · 3 · Primary flows verified at 375 and 768 (Playwright/DevTools).**
+  VERIFY: with Playwright installed, run the core job at `375×812` and `768×1024`: sign in → core create → core list → detail. Screenshot each step to `audits/evidence/mobile-*.png` and cite them. Record: overflow probe result, whether the submit button was reachable, whether any text was clipped. If Playwright is absent but a browser tool is available, use DevTools device toolbar for the same path. If neither: UNCHECKED → this check is FAIL and the area confidence falls accordingly; say so plainly.
+  FAIL PATTERN: dashboard cards stack correctly but the create form's two-column grid never collapses; tablet (768) hits the `md:` sidebar at the same time the content grid goes 3-up → 180px cards.
+- **MOB-11 · 1 · Safe-area insets honored for fixed UI.**
+  VERIFY: `grep -rn "fixed bottom-0\|sticky bottom-0\|fixed top-0" app components --include=*.tsx -l` → each must use `pb-[env(safe-area-inset-bottom)]` / `pt-[env(safe-area-inset-top)]` (or a `safe-*` utility) and `viewport-fit=cover` must be set in the viewport export (MOB-01). N/A if nothing is fixed to a viewport edge.
+  FAIL PATTERN: bottom tab bar hidden behind the iPhone home indicator; sticky header under the notch; toasts anchored `bottom-4` overlapping the home bar.
+- **MOB-12 · 2 · No hover-only interactions; touch has an equivalent.**
+  VERIFY: `grep -rnE "group-hover:(opacity|flex|block|visible)|hover:(opacity-100|visible|block)" app components --include=*.tsx` → each hit must also be reachable via `focus-within:`, always-visible on `md:` down, or exposed in a tap menu; `grep -rn "<Tooltip\|<HoverCard" app components --include=*.tsx | wc -l` → tooltips must not be the only place critical info lives (HoverCard has no touch equivalent). `onMouseEnter` without `onFocus`/`onClick`: `grep -rn "onMouseEnter" app components --include=*.tsx | grep -v "onFocus\|onClick"`.
+  FAIL PATTERN: row actions appear only on `group-hover` → invisible on phones; `HoverCard` holding the only explanation of a status; drag-and-drop reorder with no move-up/down buttons.
+- **MOB-13 · 1 · Text remains readable without zoom; inputs do not trigger auto-zoom.**
+  VERIFY: `grep -rnE "text-(xs|\[1[0-5]px\])" app components --include=*.tsx | grep -iE "input|select|textarea" ` → any form control under 16px font triggers iOS auto-zoom on focus; shadcn `Input` default is `text-base md:text-sm` — confirm it was not changed to `text-sm` only (`grep -n "text-" components/ui/input.tsx components/ui/textarea.tsx components/ui/select.tsx`). Size detail lives in Design DSN-04.
+  FAIL PATTERN: `components/ui/input.tsx` edited to `text-sm` → every form field zooms the page on iOS; 12px table text at 375px.
+
+## Scoring notes
+- MOB-03, MOB-05, MOB-10 failing on the core flow → CRITICAL ("broken on mobile" for the main path; the core job cannot be completed on a phone); MOB-01 with zoom blocked and MOB-02 with zero breakpoints → CRITICAL. Grade cap D.
+- MOB-10 is the headline evidence: with Playwright or a browser it is VERIFIED (100) and lifts MOB-03/04/05/06/08 to VERIFIED when screenshots are cited. Without any browser, MOB-10 is UNCHECKED → FAIL (never PASS), and MOB-03/04/05/08 drop to READ (85) at best.
+- MOB-11 N/A when nothing is fixed to a viewport edge; MOB-05 N/A when the app has no tables; say why in one clause.
+- One root cause, one finding: a sidebar that never collapses (MOB-06) also produces the overflow in MOB-03 — file once, reference from the other.
+- "To raise confidence": `npm i -D playwright && npx playwright install chromium` (or Chrome browser tools) plus `productionUrl`/`next dev`; a real-device check on iOS Safari for MOB-08/11/13, which no emulator reproduces exactly; test credentials to reach signed-in screens.
